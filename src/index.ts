@@ -349,30 +349,81 @@ export class ApiAgentActor extends Actor<Env> {
         }
     }
 
+    // ------------------------------------------------------------------
+    // FIXED: BULLETPROOF URL MERGING AND QUERY PARAMS LOGIC
+    // ------------------------------------------------------------------
     private async handleExecution(ws: WebSocket, payload: any) {
         this.broadcast({ type: "status", message: "Executing API call..." });
         const { baseUrl, operationKey, params, body, userQuery } = payload;
         const [method, pathTemplate] = operationKey.split('::');
 
-        let finalPath = pathTemplate;
-        if (params?.path) {
-            for (const [key, val] of Object.entries(params.path)) { finalPath = finalPath.replace(`{${key}}`, encodeURIComponent(String(val))); }
+        try {
+            // 1. Path Params Replacement
+            let finalPath = pathTemplate;
+            if (params?.path) {
+                for (const [key, val] of Object.entries(params.path)) { 
+                    finalPath = finalPath.replace(`{${key}}`, encodeURIComponent(String(val))); 
+                }
+            }
+
+            // 2. BULLETPROOF URL MERGING (Fixes the 404 bug)
+            const cleanBaseUrl = (baseUrl || "").replace(/\/$/, "");
+            const cleanPath = finalPath.replace(/^\//, "");
+            let targetUrlStr = `${cleanBaseUrl}/${cleanPath}`;
+
+            const targetUrl = new URL(targetUrlStr);
+
+            // 3. BULLETPROOF QUERY PARAMETERS
+            if (params) {
+                // Did the manual Form Builder send this? (Structured: { query: {...} })
+                if (params.query) {
+                    for (const [key, val] of Object.entries(params.query)) {
+                        if (Array.isArray(val)) val.forEach(v => targetUrl.searchParams.append(key, String(v)));
+                        else targetUrl.searchParams.append(key, String(val));
+                    }
+                } 
+                // Did the AI send this directly? (Flat: { status: "available" })
+                else if (!params.path && !params.query && !params.header) {
+                    for (const [key, val] of Object.entries(params)) {
+                        if (Array.isArray(val)) val.forEach(v => targetUrl.searchParams.append(key, String(v)));
+                        else targetUrl.searchParams.append(key, String(val));
+                    }
+                }
+            }
+
+            // 4. Set up Fetch Options
+            const fetchOptions: RequestInit = { 
+                method: method.toUpperCase(), 
+                headers: { 
+                    'Accept': 'application/json', 
+                    'Content-Type': 'application/json', 
+                    ...(params?.header || {}) 
+                } 
+            };
+
+            // Add body if it's a POST/PUT/PATCH and body exists
+            if (['POST', 'PUT', 'PATCH'].includes(fetchOptions.method!)) {
+                if (body) {
+                    const bodyPayload = body.json ? body.json : body;
+                    if (Object.keys(bodyPayload).length > 0) {
+                        fetchOptions.body = JSON.stringify(bodyPayload);
+                    }
+                }
+            }
+
+            // 5. Execute API Call
+            const execResponse = await fetch(targetUrl.toString(), fetchOptions);
+            const responseData = await execResponse.json().catch(() => ({ status: execResponse.statusText }));
+
+            this.broadcast({ type: "api_execution_result", statusCode: execResponse.status, data: responseData });
+            
+            this.sql`INSERT INTO chat_history (role, content) VALUES ('assistant', ${'[TOOL: API EXECUTION] Status: ' + execResponse.status});`;
+            await this.runDataAnalysisTool(responseData, userQuery || `Executed ${operationKey}`);
+
+        } catch (err: any) {
+            console.error("Execution Error:", err);
+            this.broadcast({ type: "api_execution_result", statusCode: 500, data: { error: err.message } });
         }
-        const targetUrl = new URL(finalPath, baseUrl);
-        if (params?.query) {
-            for (const [key, val] of Object.entries(params.query)) { targetUrl.searchParams.append(key, String(val)); }
-        }
-
-        const fetchOptions: RequestInit = { method: method.toUpperCase(), headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', ...(params?.header || {}) } };
-        if (['POST', 'PUT', 'PATCH'].includes(fetchOptions.method!) && body?.json) { fetchOptions.body = JSON.stringify(body.json); }
-
-        const execResponse = await fetch(targetUrl.toString(), fetchOptions);
-        const responseData = await execResponse.json().catch(() => ({ status: execResponse.statusText }));
-
-        this.broadcast({ type: "api_execution_result", statusCode: execResponse.status, data: responseData });
-        
-        this.sql`INSERT INTO chat_history (role, content) VALUES ('assistant', ${'[TOOL: API EXECUTION] Status: ' + execResponse.status});`;
-        await this.runDataAnalysisTool(responseData, userQuery || `Executed ${operationKey}`);
     }
 }
 

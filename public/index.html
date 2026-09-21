@@ -3,559 +3,716 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI OpenAPI Agent Playground</title>
-    <!-- Tailwind CSS -->
+    <title>AI API Agent & Dynamic Form</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- YAML Parser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- SweetAlert2 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
+    
     <style>
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .dragover { background-color: #eef2ff !important; border-color: #6366f1 !important; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* Highlight animation for AI filled form fields */
-        .ai-filled { animation: aiGlow 2.5s ease-out; }
-        @keyframes aiGlow { 
-            0% { box-shadow: 0 0 0 3px #818cf8; background-color: #e0e7ff; } 
-            100% { box-shadow: 0 0 0 0 transparent; background-color: #f8fafc; } 
-        }
+        .typing-dot { animation: typing 1.4s infinite ease-in-out both; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        
+        .dragover { background-color: #eef2ff !important; border-color: #6366f1 !important; }
+        .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col items-center p-4 sm:p-8">
+<body class="flex h-screen bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden">
 
-    <div class="max-w-3xl w-full space-y-6">
-        
-        <!-- HEADER -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 text-center space-y-3">
-            <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl mb-1 text-2xl shadow-inner">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-            </div>
-            <h1 class="text-3xl font-black text-slate-900 tracking-tight">AI OpenAPI Agent</h1>
-            <p class="text-sm text-slate-500 max-w-lg mx-auto">Upload an API schema, let Gemini auto-fill the forms via WebSocket, and visualize the response data with zero configuration.</p>
-            <div class="flex items-center justify-center gap-2 pt-2">
-                <span id="wsStatusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                <span id="wsStatusText" class="text-xs font-mono text-slate-400">Connecting to Actor...</span>
-            </div>
+    <!-- Sidebar / Settings -->
+    <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-10 flex-shrink-0 overflow-y-auto">
+        <div class="p-5 border-b border-slate-200 bg-slate-900 text-white sticky top-0 z-20">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i> API Agent
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">AI Explorer & Form Generator</p>
         </div>
 
-        <!-- 1. SCHEMA UPLOAD -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 space-y-4">
-            <div class="flex justify-between items-center">
-                <label class="text-xs font-bold uppercase tracking-wider text-slate-500">1. Upload API Specification</label>
-                <button id="loadSampleBtn" type="button" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1">
-                    <i class="fa-solid fa-flask"></i> Load Demo Weather Schema
+        <div class="p-5 space-y-6">
+            <!-- Connection Settings -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Connection Settings</h2>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Worker URL</label>
+                    <input type="text" id="ws-url" value="wss://api-agent.n8271435.workers.dev/ws" class="w-full text-sm p-2 border border-slate-200 rounded-lg bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Session ID</label>
+                    <input type="text" id="session-id" value="demo-session-1" class="w-full text-sm p-2 border border-slate-200 rounded-lg bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+                <button id="btn-connect" class="w-full bg-slate-900 text-white text-sm py-2 rounded-lg hover:bg-slate-800 transition font-medium shadow">
+                    Connect to Agent
+                </button>
+                <div id="conn-status" class="text-xs text-center text-slate-500 flex items-center justify-center gap-1 mt-1">
+                    <span class="w-2 h-2 rounded-full bg-red-500" id="status-dot"></span> Disconnected
+                </div>
+            </div>
+
+            <hr class="border-slate-100">
+
+            <!-- Target API Settings -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                    <span>1. Load Schema</span>
+                    <button id="btn-load-sample" class="text-indigo-600 hover:text-indigo-800 text-[10px] bg-indigo-50 px-2 py-1 rounded">Load Petstore Sample</button>
+                </h2>
+                
+                <!-- Drag and Drop Zone -->
+                <label id="dropZone" for="schemaFile" class="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-all group">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center pointer-events-none">
+                        <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 mb-2 group-hover:text-indigo-500 transition-colors"></i>
+                        <p class="text-xs text-slate-600"><span class="font-bold text-indigo-600">Click</span> or drag & drop</p>
+                        <p class="text-[10px] text-slate-400 mt-1 font-mono bg-slate-200 px-1.5 py-0.5 rounded" id="fileNameDisplay">JSON or YAML</p>
+                    </div>
+                    <input id="schemaFile" type="file" class="hidden" accept=".json,.yaml,.yml" />
+                </label>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Target Base URL (Auto-filled)</label>
+                    <input type="text" id="base-url" placeholder="https://api.example.com" class="w-full text-sm p-2 border border-slate-200 rounded-lg bg-slate-50 focus:ring-2 focus:ring-indigo-500 outline-none">
+                </div>
+            </div>
+
+            <hr class="border-slate-100">
+
+            <!-- Manual Execution -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">2. Manual Execution (Optional)</h2>
+                <select id="operationSelect" disabled class="w-full text-xs p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-not-allowed">
+                    <option value="">-- Awaiting Schema Upload --</option>
+                </select>
+                <button id="openModalBtn" disabled class="w-full py-2 px-4 bg-white border border-slate-300 text-slate-700 text-sm font-bold rounded-lg hover:bg-slate-50 transition-all cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-pen-to-square"></i> Open Form Builder
                 </button>
             </div>
-            
-            <label id="dropZone" for="schemaFile" class="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-all group">
-                <div class="flex flex-col items-center justify-center text-center p-4">
-                    <i class="fa-solid fa-cloud-arrow-up text-2xl text-slate-400 group-hover:text-indigo-500 mb-1 transition-colors"></i>
-                    <p class="text-sm text-slate-600 font-medium">Click to upload or drag & drop</p>
-                    <p class="text-xs text-slate-400 mt-1 font-mono" id="fileNameDisplay">JSON or YAML OpenAPI Spec</p>
-                </div>
-                <input id="schemaFile" type="file" class="hidden" accept=".json,.yaml,.yml" />
-            </label>
+        </div>
+        
+        <div class="mt-auto p-4 border-t border-slate-200 bg-slate-50">
+            <button id="btn-clear" disabled class="w-full bg-rose-50 text-rose-600 border border-rose-200 text-sm py-2 rounded-lg hover:bg-rose-100 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-trash mr-1"></i> Clear Chat History
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="flex-1 flex flex-col bg-white relative">
+        <!-- Status Bar -->
+        <div id="ai-status-bar" class="absolute top-0 left-0 right-0 bg-indigo-50 text-indigo-800 text-xs py-2 px-4 flex items-center justify-center gap-2 transform -translate-y-full transition-transform duration-300 z-10 border-b border-indigo-100 shadow-sm font-medium">
+            <div class="flex gap-1">
+                <div class="w-1.5 h-1.5 bg-indigo-600 rounded-full typing-dot"></div>
+                <div class="w-1.5 h-1.5 bg-indigo-600 rounded-full typing-dot"></div>
+                <div class="w-1.5 h-1.5 bg-indigo-600 rounded-full typing-dot"></div>
+            </div>
+            <span id="ai-status-text">AI is thinking...</span>
         </div>
 
-        <!-- 2. AI CHAT INPUT -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 space-y-3">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">2. Ask Gemini to Do Something</label>
-            <div class="flex gap-2">
-                <input type="text" id="aiInput" disabled placeholder="Waiting for schema upload..." 
-                       class="flex-1 px-4 py-3.5 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                <button id="aiSendBtn" disabled class="px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2">
+        <!-- Chat Container -->
+        <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6 pb-24">
+            <!-- Welcome Message -->
+            <div class="flex gap-4 max-w-4xl mx-auto">
+                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600">
+                    <i class="fa-solid fa-wand-magic-sparkles text-sm"></i>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-none px-5 py-3 text-sm text-slate-700 shadow-sm">
+                    Hello! Connect to the agent, upload an OpenAPI schema via the sidebar, and then ask me to fetch or create data! 
+                    <br><br><span class="text-xs text-slate-500">If an API requires a file upload or complex inputs, I will generate a form for you to fill out. Try the Petstore sample to test me!</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 bg-white/80 backdrop-blur-md">
+            <div class="max-w-4xl mx-auto flex gap-3">
+                <input type="text" id="chat-input" disabled placeholder="e.g., Get pets by status available, or Add a new pet..." class="flex-1 p-3.5 border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:opacity-50">
+                <button id="btn-send" disabled class="bg-indigo-600 text-white px-6 py-3.5 rounded-xl hover:bg-indigo-700 transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-sm">
                     <i class="fa-solid fa-paper-plane"></i>
                 </button>
             </div>
-            <div id="aiStatus" class="text-xs font-semibold text-indigo-600 h-4 flex items-center gap-2"></div>
         </div>
+    </main>
 
-        <!-- 3. MANUAL SELECTOR (FALLBACK) -->
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 space-y-3">
-            <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Or Manually Pick Endpoint</label>
-            <div class="flex gap-2">
-                <select id="operationSelect" disabled class="flex-1 px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all cursor-not-allowed">
-                    <option value="">-- Awaiting Schema Upload --</option>
-                </select>
-                <button id="openModalBtn" disabled class="px-5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm rounded-xl disabled:opacity-40 transition-all">
-                    Open Form
-                </button>
-            </div>
-        </div>
-
-        <!-- 4. POST-API DASHBOARD (AI Insights & Visualizer) -->
-        <div id="aiDashboard" class="hidden bg-white rounded-3xl shadow-xl border border-slate-200/80 p-6 sm:p-8 space-y-6">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-chart-pie text-indigo-500"></i> AI Insights & Visualizations
-                </h2>
-                <span class="text-xs font-mono bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-bold">Auto-Generated</span>
-            </div>
-
-            <!-- Bullet Insights -->
-            <div class="space-y-2">
-                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Key Takeaways</h4>
-                <div id="insightsList" class="space-y-2 text-sm text-slate-600 font-medium"></div>
-            </div>
-
-            <!-- Follow-up Suggestions -->
-            <div class="space-y-2">
-                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Suggested Next Prompts</h4>
-                <div id="suggestionsList" class="flex gap-2 flex-wrap"></div>
-            </div>
-
-            <!-- Chart / HTML Visualization Iframe -->
-            <div class="space-y-2 pt-2">
-                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Interactive Graphic</h4>
-                <div class="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 shadow-inner">
-                    <iframe id="visualizerFrame" class="w-full h-[380px] border-0" sandbox="allow-scripts"></iframe>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- MODAL (Dynamic Form) -->
-    <div id="apiModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4 sm:p-6 opacity-0 transition-all duration-300">
-        <form id="apiForm" class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-all duration-300">
+    <!-- MODAL: Dynamic Form Builder -->
+    <div id="apiModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4 sm:p-6 transition-all opacity-0">
+        <form id="apiForm" class="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden transform scale-95 transition-all duration-300">
             
             <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                 <div class="flex items-center gap-3 overflow-hidden">
-                    <span id="modalMethodBadge" class="text-xs font-black px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 bg-slate-200 text-slate-700">GET</span>
-                    <span id="modalOperationTitle" class="font-bold text-slate-800 text-base truncate">Endpoint Title</span>
+                    <span id="modalMethodBadge" class="text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shrink-0 bg-indigo-100 text-indigo-700">METHOD</span>
+                    <span id="modalOperationTitle" class="font-bold text-slate-800 text-lg truncate">Fill Missing Parameters</span>
                 </div>
-                <button type="button" id="closeModalBtn" class="text-slate-400 hover:text-rose-600 w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all">
-                    <i class="fa-solid fa-xmark text-lg"></i>
+                <button type="button" id="closeModalBtn" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                    <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
             </div>
-            
-            <!-- Warning when AI missed required params -->
-            <div id="modalAiWarning" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-3 text-amber-800 text-xs font-semibold flex items-center gap-2">
-                <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm"></i> 
-                <span id="modalAiWarningText">AI filled partial data. Some required fields remain empty.</span>
-            </div>
 
-            <!-- Dynamic Form Fields will be inserted here -->
-            <div id="modalFormContainer" class="p-6 overflow-y-auto space-y-6 flex-1 bg-white"></div>
+            <div id="modalFormContainer" class="p-6 overflow-y-auto space-y-8 flex-1 bg-white"></div>
 
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-                <button type="button" id="closeModalFooterBtn" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-200 transition-all">Cancel</button>
-                <button type="submit" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md shadow-indigo-100 flex items-center gap-2 transition-all">
-                    <i class="fa-solid fa-bolt"></i> Execute API Call
+                <button type="button" id="closeModalFooterBtn" class="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-200 transition-all">Cancel</button>
+                <button type="submit" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-play"></i> Execute API Call
                 </button>
             </div>
         </form>
     </div>
 
     <script>
-        // -------------------------------------------------------------
-        // CONFIGURATION (AUTO-DETECTS BACKEND)
-        // -------------------------------------------------------------
-        const TENANT_ID = "demo_user"; 
-
-        // If file is opened as file://, fallback safely to localhost:8787
-        const isFileProtocol = window.location.protocol === 'file:' || !window.location.host;
-        const HOST = isFileProtocol ? 'localhost:8787' : window.location.host;
-        const HTTP_PROTOCOL = window.location.protocol === 'https:' ? 'https:' : 'http:';
-        const WS_PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const BASE_API_URL = `${HTTP_PROTOCOL}//${HOST}`;
-
+        // --- GLOBAL STATE ---
         let ws = null;
+        let lastUserQuery = "";
+        let rawSpec = null; 
+        let resolvedSpec = null; 
         let operationsMap = {};
-        let currentOperationKey = null;
+        let currentModalOperationKey = null;
 
-        // -------------------------------------------------------------
-        // WEBSOCKET MANAGEMENT
-        // -------------------------------------------------------------
-        function connectWebSocket() {
-            if (ws) {
-                try { ws.close(); } catch(e) {}
-            }
+        // --- DOM ELEMENTS ---
+        const ui = {
+            wsUrl: document.getElementById('ws-url'),
+            sessionId: document.getElementById('session-id'),
+            baseUrl: document.getElementById('base-url'),
+            chatInput: document.getElementById('chat-input'),
+            btnConnect: document.getElementById('btn-connect'),
+            btnSend: document.getElementById('btn-send'),
+            btnClear: document.getElementById('btn-clear'),
+            statusDot: document.getElementById('status-dot'),
+            connStatus: document.getElementById('conn-status'),
+            chatContainer: document.getElementById('chat-container'),
+            aiStatusBar: document.getElementById('ai-status-bar'),
+            aiStatusText: document.getElementById('ai-status-text'),
             
-            const targetUrl = `${WS_PROTOCOL}//${HOST}/actor/${TENANT_ID}/ws`;
-            console.log("Connecting WebSocket to:", targetUrl);
-            ws = new WebSocket(targetUrl);
+            dropZone: document.getElementById('dropZone'),
+            schemaFile: document.getElementById('schemaFile'),
+            fileNameDisplay: document.getElementById('fileNameDisplay'),
+            btnLoadSample: document.getElementById('btn-load-sample'),
+            operationSelect: document.getElementById('operationSelect'),
+            openModalBtn: document.getElementById('openModalBtn'),
             
-            ws.onopen = () => {
-                document.getElementById('wsStatusDot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
-                document.getElementById('wsStatusText').innerText = `Connected (${HOST} / ${TENANT_ID})`;
-            };
+            apiModal: document.getElementById('apiModal'),
+            apiForm: document.getElementById('apiForm'),
+            modalFormContainer: document.getElementById('modalFormContainer'),
+            modalMethodBadge: document.getElementById('modalMethodBadge'),
+            modalOperationTitle: document.getElementById('modalOperationTitle'),
+            closeModalBtns: [document.getElementById('closeModalBtn'), document.getElementById('closeModalFooterBtn')]
+        };
 
-            ws.onclose = () => {
-                document.getElementById('wsStatusDot').className = "w-2.5 h-2.5 rounded-full bg-rose-500";
-                document.getElementById('wsStatusText').innerText = "Disconnected. Retrying...";
-                setTimeout(connectWebSocket, 3000);
-            };
-
-            ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
-                
-                if (msg.error) {
-                    Swal.fire('Error', msg.error, 'error');
-                    setAiStatus("");
-                    return;
-                }
-
-                if (msg.type === "init") {
-                    if (msg.hasSchema) unlockChat();
-                }
-
-                if (msg.type === "status") {
-                    setAiStatus(msg.message);
-                }
-
-                if (msg.type === "form_fill") {
-                    setAiStatus("");
-                    handleAiFormFill(msg.data);
-                }
-
-                if (msg.type === "data_insights") {
-                    setAiStatus("");
-                    renderInsights(msg.data);
-                }
-            };
-        }
-
-        function unlockChat() {
-            const input = document.getElementById('aiInput');
-            const btn = document.getElementById('aiSendBtn');
-            input.disabled = false;
-            btn.disabled = false;
-            input.placeholder = "e.g., Check weather in Paris with metric units...";
-        }
-
-        function setAiStatus(text) {
-            const el = document.getElementById('aiStatus');
-            el.innerHTML = text ? `<i class="fa-solid fa-circle-notch fa-spin"></i> ${text}` : '';
-        }
-
-        document.getElementById('aiSendBtn').addEventListener('click', sendAiMessage);
-        document.getElementById('aiInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendAiMessage(); });
-
-        function sendAiMessage() {
-            const input = document.getElementById('aiInput');
-            const val = input.value.trim();
-            if (!val || !ws) return;
-            setAiStatus("Transmitting to Actor...");
-            ws.send(JSON.stringify({ action: "generate_request", query: val }));
-        }
-
-        // -------------------------------------------------------------
-        // SCHEMA PARSING & UPLOAD
-        // -------------------------------------------------------------
-        const dropZone = document.getElementById('dropZone');
-        const schemaFileInput = document.getElementById('schemaFile');
-
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eName => dropZone.addEventListener(eName, e => { e.preventDefault(); e.stopPropagation(); }, false));
-        ['dragenter', 'dragover'].forEach(eName => dropZone.classList.add('dragover'));
-        ['dragleave', 'drop'].forEach(eName => dropZone.classList.remove('dragover'));
+        // --- UTILS & CHAT RENDERERS ---
+        const scrollToBottom = () => ui.chatContainer.scrollTo({ top: ui.chatContainer.scrollHeight, behavior: 'smooth' });
         
-        dropZone.addEventListener('drop', e => processFile(e.dataTransfer.files[0]));
-        schemaFileInput.addEventListener('change', e => processFile(e.target.files[0]));
+        const showStatus = (text) => {
+            if (!text) return ui.aiStatusBar.classList.add('-translate-y-full');
+            ui.aiStatusText.innerText = text;
+            ui.aiStatusBar.classList.remove('-translate-y-full');
+        };
 
-        function processFile(file) {
+        function appendMessage(role, htmlContent) {
+            const div = document.createElement('div');
+            const isUser = role === 'user';
+            div.className = `flex gap-4 max-w-4xl mx-auto w-full ${isUser ? 'flex-row-reverse' : ''}`;
+            
+            const icon = isUser ? `<i class="fa-solid fa-user text-sm"></i>` : (role === 'system' ? `<i class="fa-solid fa-triangle-exclamation"></i>` : `<i class="fa-solid fa-wand-magic-sparkles text-sm"></i>`);
+            const iconColor = isUser ? 'bg-slate-800 text-white' : (role === 'system' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600');
+            const boxColor = isUser ? 'bg-indigo-600 text-white rounded-tr-none' : (role === 'system' ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-slate-50 border-slate-200 text-slate-700 rounded-tl-none');
+
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full ${iconColor} flex items-center justify-center flex-shrink-0 shadow-sm">
+                    ${icon}
+                </div>
+                <div class="${boxColor} border rounded-2xl px-5 py-3 text-sm shadow-sm flex-1 whitespace-pre-wrap ${role === 'system' ? 'flex items-center' : ''}">${htmlContent}</div>
+            `;
+            ui.chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        // --- SCHEMA PARSING & DRAG-DROP LOGIC ---
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eName => ui.dropZone.addEventListener(eName, e => { e.preventDefault(); e.stopPropagation(); }, false));
+        ['dragenter', 'dragover'].forEach(eName => ui.dropZone.classList.add('dragover'));
+        ['dragleave', 'drop'].forEach(eName => ui.dropZone.classList.remove('dragover'));
+        
+        ui.dropZone.addEventListener('drop', e => processSchemaFile(e.dataTransfer.files[0]));
+        ui.schemaFile.addEventListener('change', e => processSchemaFile(e.target.files[0]));
+
+        function processSchemaFile(file) {
             if (!file) return;
-            document.getElementById('fileNameDisplay').textContent = file.name;
+            ui.fileNameDisplay.textContent = file.name;
+            ui.fileNameDisplay.classList.add('bg-indigo-100', 'text-indigo-700');
             const reader = new FileReader();
-            reader.onload = (e) => uploadAndParseSchema(e.target.result, file.name.endsWith('.yaml') || file.name.endsWith('.yml'));
+            reader.onload = (event) => parseAndLoadSchema(event.target.result, file.name.endsWith('.yaml') || file.name.endsWith('.yml'));
             reader.readAsText(file);
         }
 
-        async function uploadAndParseSchema(rawText, isYaml = false) {
+        // --- NEW: LIVE GUARANTEED SAMPLE (Swagger Petstore) ---
+        ui.btnLoadSample.addEventListener('click', async () => {
+            ui.fileNameDisplay.textContent = "Loading Sample...";
             try {
-                const parsed = isYaml ? jsyaml.load(rawText) : JSON.parse(rawText);
-                populateOperationsDropdown(parsed);
-
-                setAiStatus("Persisting schema to Actor's SQLite database...");
-                await fetch(`${BASE_API_URL}/actor/${TENANT_ID}/schema`, { method: 'POST', body: rawText });
-
-                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Schema Loaded & Synced!', timer: 2000, showConfirmButton: false });
-                unlockChat();
-                setAiStatus("");
-            } catch (err) {
-                Swal.fire('Parsing Failed', 'Could not parse OpenAPI schema: ' + err.message, 'error');
+                // Fetch the official Swagger Petstore definition
+                const res = await fetch('https://petstore.swagger.io/v2/swagger.json');
+                if (!res.ok) throw new Error("Network request failed.");
+                
+                const jsonText = await res.text();
+                // It's a JSON file, so pass `false` for isYaml
+                parseAndLoadSchema(jsonText, false); 
+                
+                ui.fileNameDisplay.textContent = "petstore-swagger.json";
+                ui.fileNameDisplay.classList.add('bg-indigo-100', 'text-indigo-700');
+            } catch (e) {
+                Swal.fire('Error', 'Failed to load sample schema. Please check your internet connection.', 'error');
+                ui.fileNameDisplay.textContent = "JSON or YAML";
             }
-        }
-
-        function populateOperationsDropdown(spec) {
-            operationsMap = {};
-            const select = document.getElementById('operationSelect');
-            select.innerHTML = '<option value="">-- Choose an API endpoint --</option>';
-
-            for (const [path, pathItem] of Object.entries(spec.paths || {})) {
-                ['get', 'post', 'put', 'delete', 'patch'].forEach(m => {
-                    if (pathItem[m]) {
-                        const key = `${m.toUpperCase()}::${path}`;
-                        operationsMap[key] = { method: m.toUpperCase(), path, details: pathItem[m] };
-                        const opt = document.createElement('option');
-                        opt.value = key;
-                        opt.textContent = `[${m.toUpperCase()}] ${path} - ${pathItem[m].summary || ''}`;
-                        select.appendChild(opt);
-                    }
-                });
-            }
-
-            select.disabled = false;
-            select.classList.remove('cursor-not-allowed');
-            document.getElementById('openModalBtn').disabled = false;
-        }
-
-        // -------------------------------------------------------------
-        // DYNAMIC FORM RENDERING
-        // -------------------------------------------------------------
-        document.getElementById('openModalBtn').addEventListener('click', () => {
-            const key = document.getElementById('operationSelect').value;
-            if (key) openFormModal(key);
         });
 
-        function openFormModal(key) {
-            currentOperationKey = key;
-            const op = operationsMap[key];
-            if (!op) return;
+        // IMPROVED PARSING LOGIC FOR EXTRACTING BASE URL
+        function parseAndLoadSchema(content, isYaml) {
+            try {
+                rawSpec = isYaml ? jsyaml.load(content) : JSON.parse(content);
+                resolvedSpec = dereferenceSpec(rawSpec, rawSpec);
+                
+                // --- Auto-fill Base URL (Bulletproof logic) ---
+                let targetUrl = "";
 
-            document.getElementById('modalOperationTitle').textContent = op.details.summary || op.path;
-            const badge = document.getElementById('modalMethodBadge');
-            badge.textContent = op.method;
-            
-            const colorMap = { GET: 'bg-emerald-100 text-emerald-700', POST: 'bg-blue-100 text-blue-700', PUT: 'bg-amber-100 text-amber-700', DELETE: 'bg-rose-100 text-rose-700', PATCH: 'bg-purple-100 text-purple-700' };
-            badge.className = `text-xs font-black px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 ${colorMap[op.method] || 'bg-slate-100 text-slate-700'}`;
-
-            buildDynamicFormInputs(op.details);
-
-            const modal = document.getElementById('apiModal');
-            const form = document.getElementById('apiForm');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-            setTimeout(() => { modal.classList.remove('opacity-0'); form.classList.remove('scale-95'); }, 10);
-        }
-
-        function buildDynamicFormInputs(operation) {
-            const container = document.getElementById('modalFormContainer');
-            container.innerHTML = '';
-            const params = operation.parameters || [];
-            const reqBody = operation.requestBody;
-
-            if (params.length === 0 && !reqBody) {
-                container.innerHTML = `<div class="text-center py-8 text-slate-400"><i class="fa-solid fa-circle-check text-3xl mb-2"></i><p class="text-sm">No parameters or body required.</p></div>`;
-                return;
-            }
-
-            // Render Parameters (query, path, header)
-            ['path', 'query', 'header'].forEach(loc => {
-                const group = params.filter(p => p.in === loc);
-                if (group.length > 0) {
-                    const header = document.createElement('h4');
-                    header.className = "text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-100 pb-1";
-                    header.textContent = `${loc} Parameters`;
-                    container.appendChild(header);
-
-                    const grid = document.createElement('div');
-                    grid.className = "grid grid-cols-1 md:grid-cols-2 gap-4 mb-4";
-                    group.forEach(p => grid.appendChild(createInputField(p.name, p.required, `data-param-in="${loc}"`, p.description)));
-                    container.appendChild(grid);
-                }
-            });
-
-            // Render JSON Body Properties
-            if (reqBody && reqBody.content && reqBody.content['application/json']) {
-                const schema = reqBody.content['application/json'].schema || {};
-                const props = schema.properties || {};
-                const requiredList = schema.required || [];
-
-                const header = document.createElement('h4');
-                header.className = "text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 border-b border-slate-100 pb-1 mt-4";
-                header.textContent = "JSON Request Body";
-                container.appendChild(header);
-
-                const grid = document.createElement('div');
-                grid.className = "grid grid-cols-1 md:grid-cols-2 gap-4";
-                Object.keys(props).forEach(name => {
-                    grid.appendChild(createInputField(name, requiredList.includes(name), `data-body-json="${name}"`, props[name].description || ""));
-                });
-                container.appendChild(grid);
-            }
-        }
-
-        function createInputField(name, isRequired, attr, desc) {
-            const div = document.createElement('div');
-            div.className = "space-y-1";
-            div.innerHTML = `
-                <div class="flex justify-between items-center text-xs">
-                    <label class="font-bold text-slate-700">${name} ${isRequired ? '<span class="text-rose-500">*</span>' : ''}</label>
-                </div>
-                ${desc ? `<p class="text-[11px] text-slate-400 truncate" title="${desc}">${desc}</p>` : ''}
-                <input type="text" name="${name}" ${isRequired ? 'required' : ''} ${attr} placeholder="Enter ${name}..." 
-                       class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
-            `;
-            return div;
-        }
-
-        function closeModal() {
-            const modal = document.getElementById('apiModal');
-            const form = document.getElementById('apiForm');
-            modal.classList.add('opacity-0');
-            form.classList.add('scale-95');
-            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
-        }
-
-        [document.getElementById('closeModalBtn'), document.getElementById('closeModalFooterBtn')].forEach(b => b.addEventListener('click', closeModal));
-
-        // -------------------------------------------------------------
-        // AI AUTO-FILL LOGIC
-        // -------------------------------------------------------------
-        function handleAiFormFill(data) {
-            if (!data.operationKey || !operationsMap[data.operationKey]) {
-                Swal.fire('AI Route Error', `Gemini selected non-existent route: ${data.operationKey}`, 'warning');
-                return;
-            }
-
-            openFormModal(data.operationKey);
-
-            setTimeout(() => {
-                // Populate path/query/header
-                Object.keys(data.params || {}).forEach(loc => {
-                    Object.entries(data.params[loc]).forEach(([key, val]) => {
-                        const input = document.querySelector(`[data-param-in="${loc}"][name="${key}"]`);
-                        if (input) { input.value = val; input.classList.add('ai-filled'); }
-                    });
-                });
-
-                // Populate JSON Body
-                if (data.body && data.body.json) {
-                    Object.entries(data.body.json).forEach(([key, val]) => {
-                        const input = document.querySelector(`[data-body-json="${key}"]`);
-                        if (input) { input.value = val; input.classList.add('ai-filled'); }
-                    });
-                }
-
-                // Warn about missing parameters if any
-                const warningBox = document.getElementById('modalAiWarning');
-                if (data.missingRequiredFields && data.missingRequiredFields.length > 0) {
-                    warningBox.classList.remove('hidden');
-                    document.getElementById('modalAiWarningText').innerText = `Missing required fields: ${data.missingRequiredFields.join(', ')}`;
-                } else {
-                    warningBox.classList.add('hidden');
-                }
-            }, 50);
-        }
-
-        // -------------------------------------------------------------
-        // API EXECUTION & AI DATA ANALYSIS (VISUALIZATION)
-        // -------------------------------------------------------------
-        document.getElementById('apiForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            closeModal();
-
-            Swal.fire({
-                title: 'Executing API...',
-                text: 'Passing response payload to Gemini for automated insights & Chart.js generation.',
-                icon: 'info',
-                timer: 2000,
-                showConfirmButton: false
-            });
-
-            // Realistic simulated data returned by the API
-            const simulatedApiResponse = {
-                city: "Paris",
-                period: "Past 7 Days",
-                metrics: [
-                    { day: "Mon", temp: 18, humidity: 62 },
-                    { day: "Tue", temp: 21, humidity: 55 },
-                    { day: "Wed", temp: 24, humidity: 48 },
-                    { day: "Thu", temp: 22, humidity: 50 },
-                    { day: "Fri", temp: 19, humidity: 70 },
-                    { day: "Sat", temp: 25, humidity: 40 },
-                    { day: "Sun", temp: 27, humidity: 35 }
-                ]
-            };
-
-            // Send to Actor's Gemini instance for analysis
-            setAiStatus("Gemini is analyzing API response and generating visualization...");
-            ws.send(JSON.stringify({
-                action: "analyze_data",
-                apiResponse: simulatedApiResponse
-            }));
-        });
-
-        function renderInsights(data) {
-            document.getElementById('aiDashboard').classList.remove('hidden');
-
-            // Render bullet points
-            const list = document.getElementById('insightsList');
-            list.innerHTML = (data.insights || []).map(item => `
-                <div class="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <i class="fa-solid fa-circle-check text-emerald-500 mt-0.5"></i>
-                    <span>${item}</span>
-                </div>
-            `).join('');
-
-            // Render clickable prompt suggestions
-            const sugg = document.getElementById('suggestionsList');
-            sugg.innerHTML = (data.suggestions || []).map(s => `
-                <button type="button" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all"
-                        onclick="document.getElementById('aiInput').value='${s}'; sendAiMessage();">
-                    <i class="fa-solid fa-sparkles mr-1"></i> ${s}
-                </button>
-            `).join('');
-
-            // Inject AI-generated Chart.js HTML into sandboxed iframe
-            if (data.html_visualization) {
-                const iframe = document.getElementById('visualizerFrame');
-                const doc = iframe.contentWindow.document;
-                doc.open();
-                doc.write(data.html_visualization);
-                doc.close();
-            }
-
-            document.getElementById('aiDashboard').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // -------------------------------------------------------------
-        // QUICK-LOAD DEMO SCHEMA
-        // -------------------------------------------------------------
-        document.getElementById('loadSampleBtn').addEventListener('click', () => {
-            const demoSchema = {
-                "openapi": "3.0.0",
-                "info": { "title": "Weather Analytics API", "version": "1.0.0" },
-                "paths": {
-                    "/api/v1/weather": {
-                        "post": {
-                            "summary": "Query Weather Metrics",
-                            "parameters": [
-                                { "name": "units", "in": "query", "required": false, "description": "Metric or Imperial", "schema": { "type": "string" } }
-                            ],
-                            "requestBody": {
-                                "required": true,
-                                "content": {
-                                    "application/json": {
-                                        "schema": {
-                                            "type": "object",
-                                            "properties": {
-                                                "city": { "type": "string", "description": "Target city name" },
-                                                "country": { "type": "string", "description": "ISO Country code" }
-                                            },
-                                            "required": ["city"]
-                                        }
-                                    }
-                                }
-                            }
+                if (resolvedSpec.servers && resolvedSpec.servers.length > 0) {
+                    // 1. OpenAPI 3.0 logic
+                    const server = resolvedSpec.servers[0];
+                    targetUrl = server.url;
+                    
+                    // Handle server variables (e.g. replacing {version} with default value)
+                    if (server.variables) {
+                        for (const [varName, varObj] of Object.entries(server.variables)) {
+                            targetUrl = targetUrl.replace(`{${varName}}`, varObj.default || '');
                         }
                     }
+                } else if (resolvedSpec.host) {
+                    // 2. Swagger 2.0 Fallback logic
+                    const scheme = (resolvedSpec.schemes && resolvedSpec.schemes.includes('https')) ? 'https' : 'http';
+                    const basePath = resolvedSpec.basePath || '';
+                    targetUrl = `${scheme}://${resolvedSpec.host}${basePath}`;
+                }
+
+                // Apply URL
+                if (targetUrl && targetUrl !== "/") {
+                    ui.baseUrl.value = targetUrl;
+                }
+
+                populateOperations(resolvedSpec);
+                
+                // Send to backend if WS is open
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ action: "load_schema", schema: resolvedSpec }));
+                } else {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'Schema parsed! Please connect to Worker to load it into AI.', showConfirmButton: false, timer: 3000 });
+                }
+            } catch (err) { 
+                Swal.fire('Error', 'Invalid schema file: ' + err.message, 'error'); 
+            }
+        }
+
+        function dereferenceSpec(obj, root, seen = new WeakSet()) {
+            if (!obj || typeof obj !== 'object') return obj;
+            if (seen.has(obj)) return obj;
+            seen.add(obj);
+            if (Array.isArray(obj)) return obj.map(item => dereferenceSpec(item, root, seen));
+            if (obj.$ref) {
+                const parts = obj.$ref.replace('#/', '').split('/');
+                let refObj = root;
+                for (let part of parts) refObj = refObj[part];
+                return dereferenceSpec(refObj, root, seen);
+            }
+            const copy = {};
+            for (const key in obj) copy[key] = dereferenceSpec(obj[key], root, seen);
+            return copy;
+        }
+
+        function populateOperations(spec) {
+            operationsMap = {}; 
+            ui.operationSelect.innerHTML = '<option value="">-- Choose an API endpoint --</option>';
+            if (!spec.paths) return;
+            const optGroups = {};
+            for (const [path, pathItem] of Object.entries(spec.paths)) {
+                ['get', 'post', 'put', 'delete', 'patch'].forEach(method => {
+                    if (pathItem[method]) {
+                        const op = pathItem[method];
+                        const key = `${method.toUpperCase()}::${path}`;
+                        operationsMap[key] = { method: method.toUpperCase(), path, details: op };
+                        const tag = (op.tags && op.tags.length > 0) ? op.tags[0] : 'Default';
+                        if (!optGroups[tag]) { optGroups[tag] = document.createElement('optgroup'); optGroups[tag].label = tag; }
+                        const opt = document.createElement('option');
+                        opt.value = key; opt.textContent = `[${method.toUpperCase()}] ${path}`;
+                        optGroups[tag].appendChild(opt);
+                    }
+                });
+            }
+            Object.values(optGroups).forEach(group => ui.operationSelect.appendChild(group));
+            ui.operationSelect.disabled = false; 
+            ui.operationSelect.classList.replace('cursor-not-allowed', 'cursor-pointer'); 
+            ui.operationSelect.classList.replace('bg-slate-100', 'bg-white');
+        }
+
+        ui.operationSelect.addEventListener('change', () => {
+            ui.openModalBtn.disabled = !ui.operationSelect.value;
+            ui.openModalBtn.classList.toggle('cursor-not-allowed', !ui.operationSelect.value);
+            if(ui.operationSelect.value) ui.openModalBtn.classList.replace('bg-white', 'bg-indigo-50');
+        });
+
+        // --- WEBSOCKET LOGIC ---
+        ui.btnConnect.addEventListener('click', () => {
+            let url = ui.wsUrl.value.trim();
+            const sid = ui.sessionId.value.trim();
+            if(!url || !sid) return alert("Worker URL and Session ID are required.");
+            
+            if(url.startsWith('http')) url = url.replace('http', 'ws');
+            if(!url.startsWith('ws')) url = 'wss://' + url;
+
+            if (ws) ws.close();
+            
+            ui.btnConnect.innerText = "Connecting...";
+            ui.btnConnect.disabled = true;
+
+            ws = new WebSocket(`${url}?session_id=${encodeURIComponent(sid)}`);
+
+            ws.onopen = () => {
+                ui.btnConnect.innerText = "Connected";
+                ui.btnConnect.classList.replace('bg-slate-900', 'bg-emerald-600');
+                ui.statusDot.classList.replace('bg-red-500', 'bg-emerald-500');
+                ui.connStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Connected`;
+                ui.chatInput.disabled = false;
+                ui.btnSend.disabled = false;
+                ui.btnClear.disabled = false;
+
+                // If schema was loaded before connecting, push it now
+                if (resolvedSpec) {
+                    ws.send(JSON.stringify({ action: "load_schema", schema: resolvedSpec }));
                 }
             };
 
-            uploadAndParseSchema(JSON.stringify(demoSchema, null, 2), false);
-            document.getElementById('fileNameDisplay').textContent = "demo_weather_schema.json";
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if(data.error) { showStatus(null); return appendMessage('system', `Error: ${data.error}`); }
+
+                    switch(data.type) {
+                        case 'init':
+                            ui.chatContainer.innerHTML = ''; 
+                            if (data.history?.length) {
+                                data.history.forEach(msg => {
+                                    if(msg.role === 'user') appendMessage('user', msg.content);
+                                    if(msg.role === 'assistant') {
+                                        try {
+                                            const p = JSON.parse(msg.content);
+                                            if(p.operationKey) renderApiCard(p); else appendMessage('assistant', msg.content);
+                                        } catch(e) { appendMessage('assistant', msg.content); }
+                                    }
+                                });
+                            } else { appendMessage('system', "New session initialized."); }
+                            break;
+
+                        case 'status': showStatus(data.message); break;
+                        case 'chat_cleared': ui.chatContainer.innerHTML = ''; appendMessage('system', "Chat cleared."); break;
+                        case 'schema_loaded': showStatus(null); appendMessage('system', `Schema loaded! Found ${data.metadata.endpoints.length} endpoints.`); break;
+                        case 'chat_reply': 
+                            showStatus(null);
+                            let msg = data.message;
+                            if(data.missingFields?.length) msg += `\n\n<strong class="text-rose-600">Missing Fields:</strong> ${data.missingFields.join(', ')}\n<em>Tip: You can reply with the info, or pick the endpoint in the sidebar to manually fill out the form.</em>`;
+                            appendMessage('assistant', msg);
+                            break;
+                        case 'form_fill': showStatus(null); renderApiCard(data.data); break;
+                        case 'api_execution_result': showStatus(null); renderApiResponse(data.statusCode, data.data); break;
+                        case 'data_insights': showStatus(null); renderInsights(data.data); break;
+                    }
+                } catch(e) { console.error("WS Parse Error", e); }
+            };
+
+            ws.onclose = () => {
+                ui.btnConnect.innerText = "Connect to Agent";
+                ui.btnConnect.disabled = false;
+                ui.btnConnect.classList.replace('bg-emerald-600', 'bg-slate-900');
+                ui.statusDot.classList.replace('bg-emerald-500', 'bg-red-500');
+                ui.connStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Disconnected`;
+                ui.chatInput.disabled = true; ui.btnSend.disabled = true; ui.btnClear.disabled = true;
+                showStatus(null);
+            };
         });
 
-        // Initialize WebSocket connection on boot
-        connectWebSocket();
+        const sendQuery = () => {
+            const text = ui.chatInput.value.trim();
+            if(!text) return;
+            appendMessage('user', text);
+            lastUserQuery = text;
+            ui.chatInput.value = '';
+            ws.send(JSON.stringify({ action: "generate_request", query: text }));
+        };
+
+        ui.btnSend.addEventListener('click', sendQuery);
+        ui.chatInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendQuery(); });
+        ui.btnClear.addEventListener('click', () => { if(confirm("Clear history?")) ws.send(JSON.stringify({ action: "clear_chat" })); });
+
+        // --- CUSTOM UI RENDERERS FOR AI CARDS ---
+
+        function renderApiCard(data) {
+            const div = document.createElement('div');
+            div.className = "flex gap-4 max-w-4xl mx-auto w-full";
+            const reqDataStr = JSON.stringify(data).replace(/"/g, '&quot;');
+            
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 text-indigo-600 shadow-sm"><i class="fa-solid fa-bolt text-sm"></i></div>
+                <div class="bg-white border border-indigo-200 rounded-2xl rounded-tl-none overflow-hidden text-sm shadow-md flex-1">
+                    <div class="bg-indigo-50 border-b border-indigo-200 px-4 py-2.5 font-mono text-xs font-bold text-indigo-800 flex justify-between items-center">
+                        <span>Prepared Request</span>
+                        <span class="bg-white border border-indigo-200 text-indigo-900 px-2 py-0.5 rounded shadow-sm">${data.operationKey}</span>
+                    </div>
+                    <div class="p-4 bg-slate-900 text-emerald-400 font-mono text-[11px] overflow-x-auto max-h-48 overflow-y-auto">
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                    <div class="p-3 bg-indigo-50/50 flex justify-between items-center gap-2 border-t border-indigo-100">
+                        <button onclick="openFormForOperation('${data.operationKey}', ${reqDataStr})" class="text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded transition text-xs font-bold border border-indigo-200 bg-white">
+                            <i class="fa-solid fa-pen-to-square mr-1"></i> Edit/Add Files
+                        </button>
+                        <button onclick="executeApiCall(${reqDataStr})" class="bg-indigo-600 text-white px-5 py-1.5 rounded-lg hover:bg-indigo-700 transition text-sm font-bold shadow flex items-center">
+                            <i class="fa-solid fa-play mr-2"></i> Execute
+                        </button>
+                    </div>
+                </div>
+            `;
+            ui.chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function renderApiResponse(statusCode, data) {
+            const isSuccess = statusCode >= 200 && statusCode < 300;
+            const div = document.createElement('div');
+            div.className = "flex gap-4 max-w-4xl mx-auto w-full";
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'} flex items-center justify-center flex-shrink-0 shadow-sm"><i class="fa-solid fa-server text-sm"></i></div>
+                <div class="bg-white border ${isSuccess ? 'border-emerald-200' : 'border-rose-200'} rounded-2xl rounded-tl-none overflow-hidden text-sm shadow-sm flex-1">
+                    <div class="${isSuccess ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'} border-b px-4 py-2 font-mono text-xs font-bold flex justify-between items-center">
+                        <span>API Response</span><span class="px-2 py-0.5 rounded bg-white/60 shadow-sm border ${isSuccess ? 'border-emerald-200' : 'border-rose-200'}">Status: ${statusCode}</span>
+                    </div>
+                    <div class="p-4 bg-slate-900 text-slate-300 font-mono text-[11px] overflow-x-auto max-h-60 overflow-y-auto"><pre>${JSON.stringify(data, null, 2)}</pre></div>
+                </div>
+            `;
+            ui.chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function renderInsights(data) {
+            const div = document.createElement('div');
+            div.className = "flex gap-4 max-w-4xl mx-auto w-full";
+            let insightsHtml = data.insights.map(i => `<li class="ml-4 list-disc mb-1">${i}</li>`).join('');
+            let chartHtml = (data.visualization?.isRelevant && data.visualization?.htmlSnippet) 
+                ? `<div class="mt-4 border border-slate-200 rounded-xl overflow-hidden bg-white p-2 shadow-inner"><iframe sandbox="allow-scripts" srcdoc="${data.visualization.htmlSnippet.replace(/"/g, '&quot;')}" class="w-full h-80 border-none rounded-lg"></iframe></div>` : '';
+            div.innerHTML = `
+                <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 shadow-sm"><i class="fa-solid fa-lightbulb text-sm"></i></div>
+                <div class="bg-white border border-amber-200 rounded-2xl rounded-tl-none p-5 text-sm shadow-md flex-1">
+                    <h3 class="font-bold text-slate-800 mb-2 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-amber-500"></i> AI Analysis</h3>
+                    <p class="text-slate-700 mb-3 font-medium">${data.summary}</p>
+                    <ul class="text-slate-600 mb-2 text-xs">${insightsHtml}</ul>
+                    ${chartHtml}
+                </div>
+            `;
+            ui.chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        // --- GLOBAL EXECUTION TRIGGERS ---
+        window.executeApiCall = function(payloadData) {
+            const baseUrl = ui.baseUrl.value.trim();
+            if (!baseUrl) return alert("Please enter a Target Base URL in the sidebar.");
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                appendMessage('system', `Executing ${payloadData.operationKey}...`);
+                ws.send(JSON.stringify({ ...payloadData, action: "execute_and_analyze", baseUrl, userQuery: lastUserQuery }));
+            }
+        };
+
+        // --- MODAL & DYNAMIC FORM BUILDER LOGIC ---
+
+        ui.openModalBtn.addEventListener('click', () => openFormForOperation(ui.operationSelect.value));
+
+        window.openFormForOperation = function(opKey, prefillData = null) {
+            if (!operationsMap[opKey]) return alert("Operation schema not found. Please upload schema first.");
+            const opData = operationsMap[opKey];
+            currentModalOperationKey = opKey;
+
+            ui.modalOperationTitle.textContent = opData.details.summary || opData.path;
+            const colors = { GET: 'bg-emerald-100 text-emerald-700', POST: 'bg-blue-100 text-blue-700', PUT: 'bg-amber-100 text-amber-700', DELETE: 'bg-rose-100 text-rose-700', PATCH: 'bg-purple-100 text-purple-700' };
+            ui.modalMethodBadge.className = `text-xs font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shrink-0 ${colors[opData.method] || 'bg-slate-100 text-slate-700'}`;
+            ui.modalMethodBadge.textContent = opData.method;
+
+            buildFormInputs(opData.details, prefillData);
+
+            ui.apiModal.classList.remove('hidden'); ui.apiModal.classList.add('flex');
+            setTimeout(() => { ui.apiModal.classList.remove('opacity-0'); ui.apiForm.classList.remove('scale-95'); }, 10);
+        };
+
+        ui.closeModalBtns.forEach(btn => btn.addEventListener('click', () => {
+            ui.apiModal.classList.add('opacity-0'); ui.apiForm.classList.add('scale-95');
+            setTimeout(() => { ui.apiModal.classList.add('hidden'); ui.apiModal.classList.remove('flex'); }, 300);
+        }));
+
+        function buildFormInputs(operation, prefillData) {
+            ui.modalFormContainer.innerHTML = '';
+            const params = operation.parameters || [];
+            const requestBody = operation.requestBody;
+
+            if (params.length === 0 && !requestBody) {
+                ui.modalFormContainer.innerHTML = `<div class="flex flex-col items-center justify-center py-12 text-slate-400"><i class="fa-solid fa-mug-hot text-4xl mb-3"></i><p>No inputs required for this request.</p></div>`;
+                return;
+            }
+
+            const groupedParams = { path: [], query: [], header: [], cookie: [] };
+            params.forEach(p => { if(groupedParams[p.in]) groupedParams[p.in].push(p); });
+
+            for (const [location, list] of Object.entries(groupedParams)) {
+                if (list.length > 0) {
+                    addSectionHeader(`${location} Parameters`);
+                    const grid = document.createElement('div'); grid.className = "grid grid-cols-1 md:grid-cols-2 gap-4";
+                    list.forEach(param => {
+                        const preVal = prefillData?.params?.[location]?.[param.name] || '';
+                        grid.appendChild(createFieldUI(param.name, param.schema || {}, param.required, `data-param-in="${location}"`, param.description, preVal));
+                    });
+                    ui.modalFormContainer.appendChild(grid);
+                }
+            }
+
+            if (requestBody) {
+                const content = requestBody.content || {};
+                const mediaType = Object.keys(content)[0];
+                if (mediaType) {
+                    addSectionHeader(`Request Body (${mediaType})`);
+                    const schema = content[mediaType].schema;
+                    
+                    if (mediaType === 'multipart/form-data' || mediaType === 'application/x-www-form-urlencoded') {
+                         const grid = document.createElement('div'); grid.className = "grid grid-cols-1 md:grid-cols-2 gap-4";
+                         for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+                             const preVal = prefillData?.body?.form?.[propName] || '';
+                             grid.appendChild(createFieldUI(propName, propSchema, (schema.required || []).includes(propName), `data-body-type="form"`, propSchema.description, preVal));
+                         }
+                         ui.modalFormContainer.appendChild(grid);
+                    } else if (schema && schema.type === 'object') {
+                        ui.modalFormContainer.appendChild(createObjectUI(schema, 'body', `data-body-type="json"`, prefillData?.body?.json || {}));
+                    }
+                }
+            }
+        }
+
+        function addSectionHeader(title) {
+            const h3 = document.createElement('h3');
+            h3.className = "text-xs font-bold tracking-widest uppercase text-indigo-500 border-b border-slate-100 pb-2 mb-4 mt-6 first:mt-0";
+            h3.textContent = title; ui.modalFormContainer.appendChild(h3);
+        }
+
+        function createFieldUI(name, schema, isRequired, dataAttrs, description = "", prefillValue = "") {
+            const wrapper = document.createElement('div'); wrapper.className = "space-y-1.5";
+            const reqHtml = isRequired ? '<span class="text-rose-500 font-bold">*</span>' : '';
+            const descHtml = description ? `<p class="text-[10px] text-slate-400 truncate" title="${description}">${description}</p>` : '';
+            
+            let inputHtml = '';
+            const type = schema.type || 'string';
+            const baseClass = "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all bg-slate-50 focus:bg-white";
+
+            if (schema.enum) {
+                const options = schema.enum.map(e => `<option value="${e}" ${e == prefillValue ? 'selected' : ''}>${e}</option>`).join('');
+                inputHtml = `<select name="${name}" ${isRequired ? 'required' : ''} ${dataAttrs} class="${baseClass}"><option value="">-- Select --</option>${options}</select>`;
+            } else if (type === 'boolean') {
+                inputHtml = `<div class="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in mt-1"><input type="checkbox" name="${name}" ${dataAttrs} ${prefillValue ? 'checked' : ''} class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 transition-transform duration-200"/><label class="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 cursor-pointer"></label></div>`;
+            } else if (type === 'array') {
+                if (schema.items && schema.items.format === 'binary') { 
+                    inputHtml = `<input type="file" multiple name="${name}" ${isRequired ? 'required' : ''} ${dataAttrs} class="${baseClass} !p-1 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-indigo-50 file:text-indigo-700">`;
+                } else {
+                    inputHtml = `<input type="text" data-array="true" name="${name}" ${isRequired ? 'required' : ''} ${dataAttrs} value="${Array.isArray(prefillValue) ? prefillValue.join(', ') : prefillValue}" placeholder="Comma separated..." class="${baseClass}">`;
+                }
+            } else {
+                if (schema.format === 'binary' || schema.format === 'byte') {
+                    inputHtml = `<input type="file" name="${name}" ${isRequired ? 'required' : ''} ${dataAttrs} class="${baseClass} !p-1 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-indigo-50 file:text-indigo-700">`;
+                } else {
+                    const htmlType = (schema.format === 'password') ? 'password' : (schema.format === 'email') ? 'email' : (schema.format === 'date') ? 'date' : (type === 'integer' || type === 'number') ? 'number' : 'text';
+                    inputHtml = `<input type="${htmlType}" name="${name}" value="${prefillValue}" ${isRequired ? 'required' : ''} ${dataAttrs} placeholder="Enter ${name}..." class="${baseClass}">`;
+                }
+            }
+
+            wrapper.innerHTML = `<label class="block text-xs font-bold text-slate-700">${name} ${reqHtml}</label>${descHtml}${inputHtml}`;
+            return wrapper;
+        }
+
+        function createObjectUI(schema, parentName, dataAttrs, prefillObj) {
+            const container = document.createElement('div'); container.className = "p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4";
+            for (const [propName, propSchema] of Object.entries(schema.properties || {})) {
+                const isReq = (schema.required || []).includes(propName);
+                const fieldName = `${parentName}.${propName}`;
+                const preVal = prefillObj?.[propName];
+
+                if (propSchema.type === 'object') {
+                    const l = document.createElement('label'); l.className = "block text-sm font-bold text-slate-700 mb-2"; l.textContent = propName;
+                    container.appendChild(l); container.appendChild(createObjectUI(propSchema, fieldName, dataAttrs, preVal || {}));
+                } else {
+                    container.appendChild(createFieldUI(propName, propSchema, isReq, `${dataAttrs} data-json-path="${fieldName}"`, propSchema.description, preVal || ''));
+                }
+            }
+            return container;
+        }
+
+        ui.apiForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const params = { path: {}, query: {}, header: {} };
+            const body = { json: {}, form: {} }; 
+            let hasForm = false;
+
+            // Extract Values safely
+            const extractValue = async (el) => {
+                if (el.type === 'checkbox') return el.checked;
+                if (el.type === 'file') {
+                    // For WebSockets, we can't send raw File objects easily, we convert to Base64
+                    const files = el.multiple ? Array.from(el.files) : [el.files[0]];
+                    if (!files[0]) return null;
+                    const promises = files.map(f => new Promise((res) => {
+                        const reader = new FileReader();
+                        reader.onload = () => res({ name: f.name, type: f.type, data: reader.result });
+                        reader.readAsDataURL(f);
+                    }));
+                    const base64Files = await Promise.all(promises);
+                    return el.multiple ? base64Files : base64Files[0];
+                }
+                if (el.type === 'select-multiple') return Array.from(el.selectedOptions).map(o => o.value);
+                if (el.hasAttribute('data-array') && el.value.includes(',')) return el.value.split(',').map(s=>s.trim());
+                return el.value;
+            };
+
+            const paramEls = Array.from(document.querySelectorAll('[data-param-in]'));
+            for(let el of paramEls) {
+                const val = await extractValue(el);
+                if (val !== '' && val !== null) params[el.getAttribute('data-param-in')][el.name] = val;
+            }
+
+            const bodyEls = Array.from(document.querySelectorAll('[data-body-type]'));
+            for(let el of bodyEls) {
+                const type = el.getAttribute('data-body-type');
+                const val = await extractValue(el);
+                if (val === '' || val === null || val === undefined) continue;
+
+                if (type === 'form') {
+                    hasForm = true; body.form[el.name] = val;
+                } else if (type === 'json') {
+                    const path = el.getAttribute('data-json-path').replace('body.', '').split('.');
+                    let current = body.json;
+                    while (path.length > 1) { const key = path.shift(); if (!current[key]) current[key] = {}; current = current[key]; }
+                    current[path[0]] = val;
+                }
+            }
+
+            const payloadData = { operationKey: currentModalOperationKey, params, body };
+            
+            ui.apiModal.classList.add('opacity-0'); ui.apiForm.classList.add('scale-95');
+            setTimeout(() => { ui.apiModal.classList.add('hidden'); ui.apiModal.classList.remove('flex'); }, 300);
+            
+            window.executeApiCall(payloadData);
+        });
+
     </script>
 </body>
 </html>
