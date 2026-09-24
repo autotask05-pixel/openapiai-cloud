@@ -1,6 +1,4 @@
-Here is the verified, refined, and highly accurate `README.md`. 
 
-I have cross-referenced the latest official documentation for **Cloudflare Actors (Durable Objects)**, **Embedded SQLite API**, **OpenAPI 3.0/3.1 standards**, and **WebSockets**. The technical explanations have been sharpened to reflect exactly how these modern systems interact under the hood, accompanied by beautiful, GitHub-optimized Mermaid flowcharts.
 
 ***
 
@@ -46,30 +44,30 @@ Think of an Actor as a tiny, dedicated, stateful server that lives on the edge. 
 
 ```mermaid
 flowchart TD
-    classDef client fill:#f8fafc,stroke:#94a3b8,stroke-width:2px,color:#0f172a;
-    classDef router fill:#334155,stroke:#0f172a,stroke-width:2px,color:#fff,font-weight:bold;
-    classDef actor fill:#f97316,stroke:#c2410c,stroke-width:2px,color:#fff,font-weight:bold;
-    classDef db fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff;
+    classDef client fill:#f8fafc,stroke:#94a3b8,stroke-width:2px,color:#0f172a
+    classDef router fill:#334155,stroke:#0f172a,stroke-width:2px,color:#fff,font-weight:bold
+    classDef sys_actor fill:#f97316,stroke:#c2410c,stroke-width:2px,color:#fff,font-weight:bold
+    classDef db fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff
 
-    U1(👤 User: Alice) ::: client
-    U2(👤 User: Bob) ::: client
-    U3(👤 User: Charlie) ::: client
+    U1("👤 User: Alice"):::client
+    U2("👤 User: Bob"):::client
+    U3("👤 User: Charlie"):::client
 
-    R{Global Edge Router\nwss://api.cloud} ::: router
+    R{"Global Edge Router<br>wss://api.cloud"}:::router
 
     U1 -->|Connects to ?id=marketing| R
     U2 -->|Connects to ?id=marketing| R
     U3 -->|Connects to ?id=engineering| R
 
     subgraph Marketing Workspace
-        A1[Marketing Actor\n(Stateful Sandbox)] ::: actor
-        DB1[(Embedded SQLite\nHistory & Schemas)] ::: db
+        A1["Marketing Actor<br>(Stateful Sandbox)"]:::sys_actor
+        DB1[("Embedded SQLite<br>History & Schemas")]:::db
         A1 <-->|Sub-millisecond reads| DB1
     end
 
     subgraph Engineering Workspace
-        A2[Engineering Actor\n(Stateful Sandbox)] ::: actor
-        DB2[(Embedded SQLite\nHistory & Schemas)] ::: db
+        A2["Engineering Actor<br>(Stateful Sandbox)"]:::sys_actor
+        DB2[("Embedded SQLite<br>History & Schemas")]:::db
         A2 <-->|Sub-millisecond reads| DB2
     end
 
@@ -93,24 +91,24 @@ This makes the system incredibly fast, token-efficient, and strictly focused.
 
 ```mermaid
 flowchart LR
-    classDef user fill:#ec4899,stroke:#be185d,stroke-width:2px,color:#fff;
-    classDef brain fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff,font-weight:bold;
-    classDef agent fill:#6366f1,stroke:#4338ca,stroke-width:2px,color:#fff;
-    classDef ui fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff,font-weight:bold;
+    classDef user fill:#ec4899,stroke:#be185d,stroke-width:2px,color:#fff
+    classDef brain fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff,font-weight:bold
+    classDef agent fill:#6366f1,stroke:#4338ca,stroke-width:2px,color:#fff
+    classDef ui fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff,font-weight:bold
 
-    User([🗣️ "Charge customer 123"]) ::: user
-    Router{Intent Router\n(Fast LLM)} ::: brain
+    User(["🗣️ Charge customer 123"]):::user
+    Router{"Intent Router<br>(Fast LLM)"}:::brain
 
-    A1[🔍 Reranker Agent\nFinds POST /charge] ::: agent
-    A2[🏗️ Payload Agent\nBuilds JSON body] ::: agent
-    A3[💬 Chat Agent\nFriendly reply] ::: agent
+    A1["🔍 Reranker Agent<br>Finds POST /charge"]:::agent
+    A2["🏗️ Payload Agent<br>Builds JSON body"]:::agent
+    A3["💬 Chat Agent<br>Friendly reply"]:::agent
 
     User --> Router
     Router -->|Intent: RERANK| A1
     Router -->|Intent: REQGEN| A2
     Router -->|Intent: CHAT| A3
 
-    A1 --> UI([🖥️ Pushes Form to UI via WebSocket]) ::: ui
+    A1 --> UI(["🖥️ Pushes Form to UI via WebSocket"]):::ui
     A2 --> UI
     A3 --> UI
 ```
@@ -131,21 +129,21 @@ sequenceDiagram
     
     actor Human as 👤 Human
     participant UI as 🖥️ Frontend UI
-    participant Actor as ☁️ Cloudflare Actor
+    participant Backend as ☁️ Cloudflare Actor
     participant AI as 🧠 AI Agents
     participant API as 🌍 Target API
 
     Note over Human, API: 1. Setup Phase
     Human->>UI: Drops OpenAPI schema (YAML/JSON)
-    UI->>Actor: Sends schema via WebSocket
-    Actor->>Actor: Parses & indexes into SQLite
+    UI->>Backend: Sends schema via WebSocket
+    Backend->>Backend: Parses & indexes into SQLite
 
     Note over Human, API: 2. The Automation Phase
     Human->>UI: "Upload a new product photo for ID 99"
-    UI->>Actor: Sends natural language query
-    Actor->>AI: "Match endpoint & build payload"
-    AI-->>Actor: Returns matched endpoint & pre-filled JSON
-    Actor-->>UI: Pushes "Prepared Request" Card to Chat
+    UI->>Backend: Sends natural language query
+    Backend->>AI: "Match endpoint & build payload"
+    AI-->>Backend: Returns matched endpoint & pre-filled JSON
+    Backend-->>UI: Pushes "Prepared Request" Card to Chat
     
     Note over Human, API: 3. The Approval Phase (Human-in-the-Loop)
     UI->>Human: Renders Dynamic HTML Form
@@ -153,12 +151,12 @@ sequenceDiagram
     Human->>UI: Clicks [Execute API Call]
     
     Note over Human, API: 4. Execution & Analysis
-    UI->>Actor: Sends approved payload (Files converted to Base64)
-    Actor->>API: Executes HTTP POST /products/99/upload
-    API-->>Actor: Returns 200 OK (JSON)
-    Actor->>AI: "Analyze this response data"
-    AI-->>Actor: Generates Summaries & Insights
-    Actor-->>UI: Displays beautiful insights to Human
+    UI->>Backend: Sends approved payload (Files converted to Base64)
+    Backend->>API: Executes HTTP POST /products/99/upload
+    API-->>Backend: Returns 200 OK (JSON)
+    Backend->>AI: "Analyze this response data"
+    AI-->>Backend: Generates Summaries & Insights
+    Backend-->>UI: Displays beautiful insights to Human
 ```
 
 ---
