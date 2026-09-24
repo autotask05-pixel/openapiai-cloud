@@ -172,6 +172,11 @@ The magic of `openapiai-cloud` lives in the client-side UI (`index.html`). Becau
 
 ---
 
+
+
+https://github.com/user-attachments/assets/397c0bf2-0da6-47c8-b5ea-dfa6522d2973
+
+
 ## 🚀 Quick Start (Zero Build Setup)
 
 Because the UI is built with vanilla HTML/JS and Tailwind CSS via CDN, there are **no build steps** for the frontend.
