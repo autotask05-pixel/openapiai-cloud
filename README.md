@@ -29,7 +29,7 @@ Automate the data gathering. Automate the payload building. **But leave the fina
 
 ---
 
-## 🏗️ 1. Users, Teaming & Actor Networking
+##  1. Users, Teaming & Actor Networking
 
 Traditional serverless backends are stateless—they forget who you are the second an HTTP request ends. 
 `openapiai-cloud` is built on the latest **Cloudflare Actors (Durable Objects)** architecture with **Embedded SQLite**.
@@ -40,7 +40,7 @@ Think of an Actor as a tiny, dedicated, stateful server that lives on the edge. 
 * **Zero-Latency State:** Because Cloudflare now embeds an ACID-compliant SQLite database *directly inside* the Actor's memory space, chat history and schema lookups happen in microseconds—no external database calls required.
 * **Always Connected:** The Actor maintains a persistent WebSocket connection with the client UI, allowing the AI to stream thoughts, UI cards, and status updates in real time.
 
-### 🎨 Visual: The Distributed Teaming Network
+###  Visual: The Distributed Teaming Network (Session based )
 
 ```mermaid
 flowchart TD
@@ -77,17 +77,17 @@ flowchart TD
 
 ---
 
-## 🧠 2. The Multi-Agent Brain
+##  2. The Multi-Agent Brain
 
 When you ask `openapiai-cloud` a question, you aren't talking to one monolithic LLM prompt. You are talking to a **Router Agent** that classifies your intent and delegates the task to specialized sub-agents. 
 
 This makes the system incredibly fast, token-efficient, and strictly focused.
 
-* **🔍 The Reranker Agent:** Scans your OpenAPI spec metadata and finds the exact API endpoint you need out of hundreds, scoring them by relevance.
-* **🏗️ The Payload Agent:** Takes the chosen endpoint and strictly adheres to the OpenAPI schema parameters to build the exact JSON body, headers, and path variables needed.
-* **📊 The Data Analyst Agent:** Takes raw, complex JSON responses from your executed API calls and extracts insights, summaries, and visualization code (like Chart.js).
+* **The Reranker Agent:** Scans your OpenAPI spec metadata and finds the exact API endpoint you need out of hundreds, scoring them by relevance.
+* **The Payload Agent:** Takes the chosen endpoint and strictly adheres to the OpenAPI schema parameters to build the exact JSON body, headers, and path variables needed.
+* **The Data Analyst Agent:** Takes raw, complex JSON responses from your executed API calls and extracts insights, summaries, and visualization code (like Chart.js).
 
-### 🎨 Visual: Multi-Agent Routing
+###  Visual: Multi-Agent Routing
 
 ```mermaid
 flowchart LR
@@ -96,32 +96,32 @@ flowchart LR
     classDef agent fill:#6366f1,stroke:#4338ca,stroke-width:2px,color:#fff
     classDef ui fill:#10b981,stroke:#047857,stroke-width:2px,color:#fff,font-weight:bold
 
-    User(["🗣️ Charge customer 123"]):::user
+    User([" Charge customer 123"]):::user
     Router{"Intent Router<br>(Fast LLM)"}:::brain
 
-    A1["🔍 Reranker Agent<br>Finds POST /charge"]:::agent
-    A2["🏗️ Payload Agent<br>Builds JSON body"]:::agent
-    A3["💬 Chat Agent<br>Friendly reply"]:::agent
+    A1[" Reranker Agent<br>Finds POST /charge"]:::agent
+    A2[" Payload Agent<br>Builds JSON body"]:::agent
+    A3[" Chat Agent<br>Friendly reply"]:::agent
 
     User --> Router
     Router -->|Intent: RERANK| A1
     Router -->|Intent: REQGEN| A2
     Router -->|Intent: CHAT| A3
 
-    A1 --> UI(["🖥️ Pushes Form to UI via WebSocket"]):::ui
+    A1 --> UI([" Pushes Form to UI via WebSocket"]):::ui
     A2 --> UI
     A3 --> UI
 ```
 
 ---
 
-## ⚡ 3. API Ease (The Endpoint Lifecycle)
+##  3. API Ease (The Endpoint Lifecycle)
 
 The core philosophy of `openapiai-cloud` is **"AI builds, Human approves."** 
 
 We don't want AI blindly deleting production database rows. We want the AI to do the tedious work of reading the API docs and mapping the data, while the human simply reviews the generated form and clicks "Execute".
 
-### 🎨 Visual: End-to-End Execution Flow
+###  Visual: End-to-End Execution Flow
 
 ```mermaid
 sequenceDiagram
@@ -161,7 +161,7 @@ sequenceDiagram
 
 ---
 
-## 🎨 Client-Side Magic: The Dynamic Form Builder
+##  Client-Side Magic: The Dynamic Form Builder
 
 The magic of `openapiai-cloud` lives in the client-side UI (`index.html`). Because the Actor backend sends down structured data based on official OpenAPI 3.0/3.1 specifications, the UI dynamically generates a perfect HTML form for *any* API in the world.
 
@@ -177,19 +177,20 @@ The magic of `openapiai-cloud` lives in the client-side UI (`index.html`). Becau
 https://github.com/user-attachments/assets/397c0bf2-0da6-47c8-b5ea-dfa6522d2973
 
 
-## 🚀 Quick Start (Zero Build Setup)
+##  Quick Start (Zero Build Setup)
 
 Because the UI is built with vanilla HTML/JS and Tailwind CSS via CDN, there are **no build steps** for the frontend.
 
-1. **Clone the Repo:** 
+1. **Public Url** 
    ```bash
-   git clone https://github.com/YOUR_USER/openapiai-cloud.git
-   cd openapiai-cloud
+   (https://api-agent.n8271435.workers.dev/)
    ```
-2. **Open the Client:** Just double-click `index.html` to open it in your browser. 
+2. **Open the Client:** (https://api-agent.n8271435.workers.dev/). 
 3. **Connect to the Cloud:** Enter your deployed Cloudflare Worker URL in the sidebar (or use our live demo link). Provide any Session ID to create a workspace.
 4. **Load a Schema:** Click the **"Load Petstore Sample"** button to instantly teach the AI how the Swagger Petstore API works.
 5. **Start Chatting:** Ask it to *"Find pets that are pending"*. Click the generated form, and watch it execute!
 
 ---
-*Built for the modern edge. Powered by Cloudflare Workers & OpenAPI.*
+## Future Improvements
+Chaining of api interactions  .
+Client UI improvements .
